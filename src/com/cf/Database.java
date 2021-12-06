@@ -23,7 +23,12 @@ public class Database {
     }
 
     public void closeDB() throws SQLException {
+        try{
+            conn.close();
+        } catch (Exception e) {
+            //wtf
+        }
+//        conn.close();
         statement.close();
-        conn.close();
     }
 }

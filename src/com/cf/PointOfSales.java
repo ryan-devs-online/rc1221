@@ -38,13 +38,24 @@ public class PointOfSales {
                 RentalAgreement ra = new RentalAgreement(splitInput);
                 // put ra into db.
                 // check if they want to see receipt
+                if(ra.getAvail()) {
+                    // put into db
+                    db.initDB();
+                    db.statement.executeUpdate("insert into receipts values ('" +
+                            ra.getToolCode() +"', '" + ra.getCheckoutDateString() + "', '" +
+                            ra.getDueDateString() +"', '" + ra.toString() + "')");
+                    db.closeDB();
+                    System.out.println("Do you want to see your receipt, y or n?");
+                    input = scanner.nextLine().toUpperCase(Locale.ROOT);
+                    if(input.equals("Y")){
+                        System.out.println(ra);
+                    }
 
-                System.out.println("Do you want to see your receipt, y or n?");
-                input = scanner.nextLine().toUpperCase(Locale.ROOT);
-                if(input.equals("Y")){
-                    System.out.println(ra);
+                } else {
+                    System.out.println("This tool is not available for these days. " +
+                            "Would you like to rent a different one?");
+                    start();
                 }
-
                 System.out.println("Thanks!");
                 start();
             } else {
@@ -75,19 +86,19 @@ public class PointOfSales {
         while(toolCode.next()){
             tCode.add(toolCode.getString("TOOL_CODE"));
         }
-        db.conn.close();
+        db.closeDB();
         if(!tCode.contains(input.get(0))) {
             isValid = false;
             System.out.println("Please enter a valid tool code. Type tools for a list of valid codes.");
         }
 
-        if(!Util.isInt(input.get(1)) || Integer.valueOf(input.get(1)) < 1) {
+        if(!Util.isInt(input.get(1)) || Integer.parseInt(input.get(1)) < 1) {
             isValid = false;
             System.out.println("Please enter the rental day count the form of an integer greater than one.");
         }
 
         if(!Util.isInt(input.get(2)) ||
-                (Integer.valueOf(input.get(1) )< 0 || Integer.valueOf(input.get(1))> 100)){
+                (Integer.parseInt(input.get(2) ) < 0 || Integer.parseInt(input.get(2)) > 100)){
             isValid = false;
             System.out.println("Please enter the discount percent in the form of an integer between 0 and 100.");
         }

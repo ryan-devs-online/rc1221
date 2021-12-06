@@ -1,8 +1,8 @@
 package com.cf;
 
-import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.text.DecimalFormat;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.Month;
@@ -33,16 +33,17 @@ public class RentalAgreement {
     private double preDiscount;
     private double discountAmount;
     private double finalCharge;
+    private DecimalFormat df = new DecimalFormat("#,##0.00");
 
     public RentalAgreement(ArrayList<String> splitInput) throws SQLException {
         this.toolCode = splitInput.get(0);
-        this.rentalDays = Integer.valueOf(splitInput.get(1));
-        this.discount = Integer.valueOf(splitInput.get(2));
+        this.rentalDays = Integer.parseInt(splitInput.get(1));
+        this.discount = Integer.parseInt(splitInput.get(2));
 
         if(splitInput.size() == 3) {
             this.checkoutDate = LocalDate.now();
         } else if (splitInput.size() == 4) {
-            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("mm/dd/yy");
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MM/dd/yy");
             this.checkoutDate = LocalDate.parse(splitInput.get(3), formatter);
         }
 
@@ -50,11 +51,9 @@ public class RentalAgreement {
         calculateFields();
     }
 
-    private void getDbFields() throws SQLException {
-        db.initDB();
+    private void getDbFields(){
         try {
-            PreparedStatement prep = db.conn.prepareStatement("select * from tools where TOOL_CODE=?");
-            prep.setString(1, toolCode);
+            db.initDB();
             ResultSet result = db.statement.executeQuery("select * from tools where TOOL_CODE='" + toolCode + "'");
             if(result.next()) {
                 this.toolType = result.getString("TOOL_TYPE");
@@ -65,30 +64,27 @@ public class RentalAgreement {
                 this.holidayCharge = result.getBoolean("HOLIDAY_CHARGE");
                 this.available = result.getBoolean("AVAILABLE");
             }
+            db.closeDB();
         } catch (SQLException e) {
-            System.out.println("TODO getDbFields");
-            System.out.println("error connecting to the db.");
+            System.out.println("Error connecting to the db.");
             e.printStackTrace();
         }
-        db.closeDB();
-
     }
 
     private void calculateFields() throws SQLException {
         chargeableDays = chargeDays(checkoutDate, rentalDays);
         calculatePrice(chargeableDays);
 
-        available = !checkAvailability(checkoutDate, dueDate, toolCode);
+        available = checkAvailability(checkoutDate, dueDate, toolCode);
 
     }
 
     private void calculatePrice(int chargeDays) {
-        //TODO round to X.00 prices
         preDiscount = chargeDays * dailyCharge;
         if(discount == 0 ) {
             discountAmount = 0;
         } else {
-            discountAmount = preDiscount * ( discountAmount / 100);
+            discountAmount = preDiscount * ((double) discount / 100);
         }
         finalCharge = preDiscount - discountAmount;
     }
@@ -133,7 +129,7 @@ public class RentalAgreement {
         return !(holiday.isBefore(checkoutDate) || holiday.isAfter(endDate));
     }
 
-    private boolean checkAvailability(LocalDate startDate, LocalDate endDate, String toolCode) throws SQLException {
+    private boolean checkAvailability(LocalDate startDate, LocalDate endDate, String toolCode) {
         ResultSet resultSet;
         try {
             db.initDB();
@@ -150,12 +146,28 @@ public class RentalAgreement {
             }
             db.closeDB();
         } catch (SQLException e) {
-            System.out.println("TODO checkAvailability");
             System.out.println("Unable to validate availability");
             e.printStackTrace();
         }
         return true;
     }
+
+    public boolean getAvail() {
+        return available;
+    }
+
+    public String getToolCode() {
+        return toolCode;
+    }
+
+    public String getCheckoutDateString() {
+        return checkoutDate.toString();
+    }
+
+    public String getDueDateString() {
+        return dueDate.toString();
+    }
+
 
     @Override
     public String toString(){
@@ -163,8 +175,8 @@ public class RentalAgreement {
                 "Tool brand: " + toolBrand + "\n" + "Rental Days: " + rentalDays + "\n" +
                 "Checkout date: " + checkoutDate.format(DateTimeFormatter.ofPattern("MM/dd/yy")) + "\n" +
                 "Due date: " + dueDate.format(DateTimeFormatter.ofPattern("MM/dd/yy")) + "\n" +
-                "Daily rental Charge: $" + dailyCharge + "\n" + "Charge Days: " + chargeableDays + "\n" +
-                "Pre-discount charge: $" + preDiscount + "\n" + "Discount percent: %" + discount + "\n" +
-                "Discount amount: $" + discountAmount + "\n" + "Final charge: $" + finalCharge;
+                "Daily rental Charge: $" + df.format(dailyCharge) + "\n" + "Charge Days: " + chargeableDays + "\n" +
+                "Pre-discount charge: $" + df.format(preDiscount) + "\n" + "Discount percent: " + discount + "%" + "\n" +
+                "Discount amount: $" + df.format(discountAmount) + "\n" + "Final charge: $" + df.format(finalCharge);
     }
 }
