@@ -1,7 +1,6 @@
-package com.cf;
+package com.company.main;
 
 import java.sql.*;
-import java.util.ArrayList;
 
 public class Database {
     static final String URL = "jdbc:mysql://localhost:3306/cf-pos";
@@ -10,7 +9,6 @@ public class Database {
 
     Connection conn = null;
     Statement statement = null;
-
 
     public void initDB() throws SQLException {
         try {
@@ -23,12 +21,7 @@ public class Database {
     }
 
     public void closeDB() throws SQLException {
-        try{
-            conn.close();
-        } catch (Exception e) {
-            //wtf
-        }
-//        conn.close();
+        conn.close();
         statement.close();
     }
 }

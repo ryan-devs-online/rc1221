@@ -1,11 +1,10 @@
-package com.cf;
+package com.company.main;
 
 import java.sql.SQLException;
 
 public class Main {
 
     public static void main(String[] args) throws SQLException {
-        PointOfSales pos = new PointOfSales();
-        pos.start();
+        new PointOfSales();
     }
 }

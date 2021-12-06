@@ -1,4 +1,4 @@
-package com.cf;
+package com.company.main;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -6,7 +6,6 @@ import java.text.DecimalFormat;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.Month;
-import java.time.Period;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -15,9 +14,9 @@ import java.util.Set;
 public class RentalAgreement {
     Database db = new Database();
 
-    private final String toolCode;
-    private final int rentalDays;
-    private final int discount;
+    private String toolCode;
+    private int rentalDays;
+    private int discount;
     private LocalDate checkoutDate;
 
     private String toolType;
@@ -33,22 +32,28 @@ public class RentalAgreement {
     private double preDiscount;
     private double discountAmount;
     private double finalCharge;
-    private DecimalFormat df = new DecimalFormat("#,##0.00");
+    private final DecimalFormat df = new DecimalFormat("#,##0.00");
 
-    public RentalAgreement(ArrayList<String> splitInput) throws SQLException {
-        this.toolCode = splitInput.get(0);
-        this.rentalDays = Integer.parseInt(splitInput.get(1));
-        this.discount = Integer.parseInt(splitInput.get(2));
+    public RentalAgreement() {
+    }
 
-        if(splitInput.size() == 3) {
-            this.checkoutDate = LocalDate.now();
-        } else if (splitInput.size() == 4) {
-            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MM/dd/yy");
-            this.checkoutDate = LocalDate.parse(splitInput.get(3), formatter);
+    public void setFields(ArrayList<String> splitInput) throws SQLException {
+        boolean isValid = checkInput(splitInput);
+        if(isValid) {
+            this.toolCode = splitInput.get(0);
+            this.rentalDays = Integer.parseInt(splitInput.get(1));
+            this.discount = Integer.parseInt(splitInput.get(2));
+
+            if(splitInput.size() == 3) {
+                this.checkoutDate = LocalDate.now();
+            } else if (splitInput.size() == 4) {
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MM/dd/yy");
+                this.checkoutDate = LocalDate.parse(splitInput.get(3), formatter);
+            }
+
+            getDbFields();
+            calculateFields();
         }
-
-        getDbFields();
-        calculateFields();
     }
 
     private void getDbFields(){
@@ -62,7 +67,6 @@ public class RentalAgreement {
                 this.weekdayCharge = result.getBoolean("WEEKDAY_CHARGE");
                 this.weekendCharge = result.getBoolean("WEEKEND_CHARGE");
                 this.holidayCharge = result.getBoolean("HOLIDAY_CHARGE");
-                this.available = result.getBoolean("AVAILABLE");
             }
             db.closeDB();
         } catch (SQLException e) {
@@ -71,12 +75,11 @@ public class RentalAgreement {
         }
     }
 
-    private void calculateFields() throws SQLException {
+    private void calculateFields() {
         chargeableDays = chargeDays(checkoutDate, rentalDays);
         calculatePrice(chargeableDays);
 
         available = checkAvailability(checkoutDate, dueDate, toolCode);
-
     }
 
     private void calculatePrice(int chargeDays) {
@@ -91,8 +94,7 @@ public class RentalAgreement {
 
     private int chargeDays(LocalDate checkoutDate, int rentalDays) {
         dueDate = checkoutDate.plusDays(rentalDays);
-        int period = Period.between(checkoutDate, dueDate).getDays();
-        int weekdaysBetween = 0;
+        int weekdaysBetween;
         int totalDays = rentalDays;
 
         LocalDate julyFourth = LocalDate.of(dueDate.getYear(), Month.JULY, 4);
@@ -104,21 +106,27 @@ public class RentalAgreement {
         }
 
         if(isWithinRange(julyFourth, checkoutDate, dueDate) && !holidayCharge) {
-            if(julyFourth.getDayOfWeek() == DayOfWeek.SUNDAY) {
-                dueDate = dueDate.plusDays(1);
-            } if(julyFourth.getDayOfWeek() == DayOfWeek.SATURDAY) {
-                dueDate = dueDate.minusDays(1);
+            if(julyFourth.getDayOfWeek() == DayOfWeek.SATURDAY && dueDate.isEqual(julyFourth) ) {
+                totalDays--;
+            } else if(julyFourth.getDayOfWeek() == DayOfWeek.SUNDAY && dueDate.isAfter(julyFourth)) {
+                totalDays--;
+            } else if(julyFourth.getDayOfWeek() == DayOfWeek.SATURDAY && dueDate.isAfter(julyFourth)) {
+                totalDays--;
             }
-            totalDays -= 1;
         }
 
         if(!weekendCharge) {
-            Set<DayOfWeek> weekend = EnumSet.of(DayOfWeek.SATURDAY, DayOfWeek.SUNDAY);
-            weekdaysBetween = (int) checkoutDate.datesUntil(dueDate).filter(d -> !weekend.contains(d.getDayOfWeek())).count();
-            totalDays -= (period - weekdaysBetween);
+            Set<DayOfWeek> weekday = EnumSet.of(DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY,
+                    DayOfWeek.THURSDAY, DayOfWeek.FRIDAY);
+            int weekendsBetween = (int) checkoutDate.datesUntil(dueDate.plusDays(1)).filter(
+                    d -> !weekday.contains(d.getDayOfWeek())).count();
+            totalDays = totalDays - weekendsBetween;
         }
 
         if(!weekdayCharge) {
+            Set<DayOfWeek> weekend = EnumSet.of(DayOfWeek.SATURDAY, DayOfWeek.SUNDAY);
+            weekdaysBetween = (int) checkoutDate.datesUntil(dueDate.plusDays(1)).filter(
+                    d -> !weekend.contains(d.getDayOfWeek())).count();
             totalDays -= weekdaysBetween;
         }
 
@@ -141,6 +149,8 @@ public class RentalAgreement {
 
                 if(resultStart.isBefore(endDate) && resultEnd.isAfter(startDate)) {
                     db.closeDB();
+                    System.out.println("This tool is not available for these days. " +
+                            "Would you like to rent a different one?");
                     return false;
                 }
             }
@@ -150,6 +160,45 @@ public class RentalAgreement {
             e.printStackTrace();
         }
         return true;
+    }
+
+    public boolean checkInput(ArrayList<String> input) throws SQLException {
+        boolean isValid = true;
+
+        if(input.size() != 3 && input.size() != 4) {
+            System.out.println("Please use the format: CODE # ## mm/dd/yy");
+            return false;
+        }
+        db.initDB();
+        ResultSet toolCode = db.statement.executeQuery("select TOOL_CODE from tools");
+        ArrayList<String> tCode= new ArrayList<>();
+        while(toolCode.next()){
+            tCode.add(toolCode.getString("TOOL_CODE"));
+        }
+        db.closeDB();
+        if(!tCode.contains(input.get(0))) {
+            isValid = false;
+            System.out.println("Please enter a valid tool code. Type tools for a list of valid codes.");
+        }
+
+        if(!Util.isInt(input.get(1)) || Integer.parseInt(input.get(1)) < 1) {
+            isValid = false;
+            System.out.println("Please enter the rental day count the form of an integer greater than one.");
+        }
+
+        if(!Util.isInt(input.get(2)) ||
+                (Integer.parseInt(input.get(2) ) < 0 || Integer.parseInt(input.get(2)) > 100)){
+            isValid = false;
+            System.out.println("Please enter the discount percent in the form of an integer between 0 and 100.");
+        }
+
+        if(input.size() == 4) {
+            if(!Util.isValidDate(input.get(3))) {
+                isValid = false;
+                System.out.println("Please enter the date in the form of mm/dd/yy.");
+            }
+        }
+        return isValid;
     }
 
     public boolean getAvail() {
@@ -168,6 +217,17 @@ public class RentalAgreement {
         return dueDate.toString();
     }
 
+    public String getFinalCharge() {
+        return  df.format(finalCharge);
+    }
+
+    public int getChargeableDays() {
+        return chargeableDays;
+    }
+
+    public String getPreDiscount() {
+        return df.format(preDiscount);
+    }
 
     @Override
     public String toString(){
